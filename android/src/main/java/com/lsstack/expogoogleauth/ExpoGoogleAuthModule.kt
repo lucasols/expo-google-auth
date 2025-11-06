@@ -6,11 +6,6 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
-import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
-import androidx.credentials.exceptions.GetCredentialSecurityException
-import androidx.credentials.exceptions.GetCredentialUnknownException
-import androidx.credentials.exceptions.GetCredentialUnsupportedException
-import androidx.credentials.exceptions.NoCredentialAvailableException
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -43,7 +38,7 @@ class ExpoGoogleAuthModule(private val reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun signIn(promise: Promise) {
-    val activity = currentActivity
+    val activity = reactContext.currentActivity
     if (activity == null) {
       promise.reject("no_activity", "Unable to find the current Activity.")
       return
@@ -60,7 +55,7 @@ class ExpoGoogleAuthModule(private val reactContext: ReactApplicationContext) :
 
     coroutineScope.launch {
       try {
-        val credentialManager = CredentialManager.create(activity)
+        val credentialManager = CredentialManager.create(reactContext)
         val googleIdOption = GetGoogleIdOption.Builder()
           .setServerClientId(serverClientId)
           .setFilterByAuthorizedAccounts(false)
@@ -72,24 +67,23 @@ class ExpoGoogleAuthModule(private val reactContext: ReactApplicationContext) :
           .build()
 
         val response = credentialManager.getCredential(
-          context = activity,
+          context = reactContext,
           request = request
         )
         handleCredentialResponse(response, promise)
       } catch (cancellation: GetCredentialCancellationException) {
         promise.resolve(null)
-      } catch (noCreds: NoCredentialAvailableException) {
-        promise.resolve(null)
-      } catch (providerConfig: GetCredentialProviderConfigurationException) {
-        promise.reject("play_services_not_available", providerConfig.message, providerConfig)
-      } catch (unsupported: GetCredentialUnsupportedException) {
-        promise.reject("credential_unsupported", unsupported.message, unsupported)
-      } catch (security: GetCredentialSecurityException) {
-        promise.reject("credential_security_error", security.message, security)
-      } catch (unknown: GetCredentialUnknownException) {
-        promise.reject("credential_error", unknown.message, unknown)
       } catch (error: GetCredentialException) {
-        promise.reject("credential_error", error.message, error)
+        val errorType = error.type ?: "credential_error"
+        val errorMessage = error.message ?: "Credential request failed"
+
+        when {
+          errorType.contains("NoCredentialAvailable", ignoreCase = true) -> promise.resolve(null)
+          errorType.contains("Configuration", ignoreCase = true) -> promise.reject("play_services_not_available", errorMessage, error)
+          errorType.contains("Unsupported", ignoreCase = true) -> promise.reject("credential_unsupported", errorMessage, error)
+          errorType.contains("Security", ignoreCase = true) -> promise.reject("credential_security_error", errorMessage, error)
+          else -> promise.reject("credential_error", errorMessage, error)
+        }
       } catch (error: Exception) {
         promise.reject("unexpected_error", error.message, error)
       }
