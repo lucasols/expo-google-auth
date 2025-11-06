@@ -1,0 +1,52 @@
+{
+  "name": "@ls-stack/expo-google-auth",
+  "version": "0.1.0",
+  "description": "Hybrid Google authentication for Expo: native GoogleSignIn on iOS, Credential Manager on Android.",
+  "type": "module",
+  "main": "build/src/index.js",
+  "types": "build/types/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/types/src/index.d.ts",
+      "default": "./build/src/index.js",
+      "import": "./build/src/index.js"
+    },
+    "./plugin": {
+      "types": "./build/types/plugin/index.d.ts",
+      "default": "./build/plugin/index.js",
+      "import": "./build/plugin/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf build",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" \"plugin/**/*.ts\"",
+    "prepare": "pnpm run build"
+  },
+  "keywords": [
+    "expo",
+    "react-native",
+    "google",
+    "authentication",
+    "credential-manager"
+  ],
+  "author": "Lucas Oliveira Santos",
+  "license": "MIT",
+  "peerDependencies": {
+    "expo": "^54.0.0",
+    "react": "^18.2.0",
+    "react-native": "^0.76.0"
+  },
+  "dependencies": {
+    "@expo/config-plugins": "^8.0.5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.45",
+    "@types/react-native": "^0.73.0",
+    "eslint": "^9.12.0",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.6.3"
+  },
+  "packageManager": "pnpm@10.15.0"
+}
