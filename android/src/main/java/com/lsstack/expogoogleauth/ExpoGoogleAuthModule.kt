@@ -6,6 +6,10 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
+import androidx.credentials.exceptions.GetCredentialSecurityException
+import androidx.credentials.exceptions.GetCredentialUnsupportedException
+import androidx.credentials.exceptions.NoCredentialException
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -74,15 +78,38 @@ class ExpoGoogleAuthModule(private val reactContext: ReactApplicationContext) :
       } catch (cancellation: GetCredentialCancellationException) {
         promise.resolve(null)
       } catch (error: GetCredentialException) {
-        val errorType = error.type ?: "credential_error"
-        val errorMessage = error.message ?: "Credential request failed"
-
-        when {
-          errorType.contains("NoCredentialAvailable", ignoreCase = true) -> promise.resolve(null)
-          errorType.contains("Configuration", ignoreCase = true) -> promise.reject("play_services_not_available", errorMessage, error)
-          errorType.contains("Unsupported", ignoreCase = true) -> promise.reject("credential_unsupported", errorMessage, error)
-          errorType.contains("Security", ignoreCase = true) -> promise.reject("credential_security_error", errorMessage, error)
-          else -> promise.reject("credential_error", errorMessage, error)
+        when (error) {
+          is NoCredentialException -> promise.resolve(null)
+          is GetCredentialProviderConfigurationException -> promise.reject(
+            "play_services_not_available",
+            error.message ?: "Credential provider is not available",
+            error
+          )
+          is GetCredentialUnsupportedException -> promise.reject(
+            "credential_unsupported",
+            error.message ?: "Credential provider does not support this request",
+            error
+          )
+          is GetCredentialSecurityException -> promise.reject(
+            "credential_security_error",
+            error.message ?: "Credential provider blocked the request for security reasons",
+            error
+          )
+          else -> {
+            val errorType = error.type ?: "credential_error"
+            val errorMessage = error.message ?: "Credential request failed"
+            if (errorType.contains("NoCredentialAvailable", ignoreCase = true)) {
+              promise.resolve(null)
+            } else if (errorType.contains("Configuration", ignoreCase = true)) {
+              promise.reject("play_services_not_available", errorMessage, error)
+            } else if (errorType.contains("Unsupported", ignoreCase = true)) {
+              promise.reject("credential_unsupported", errorMessage, error)
+            } else if (errorType.contains("Security", ignoreCase = true)) {
+              promise.reject("credential_security_error", errorMessage, error)
+            } else {
+              promise.reject("credential_error", errorMessage, error)
+            }
+          }
         }
       } catch (error: Exception) {
         promise.reject("unexpected_error", error.message, error)

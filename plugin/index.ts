@@ -6,6 +6,7 @@ import {
   createRunOncePlugin,
   withAppDelegate,
   withInfoPlist,
+  withPodfile,
   withStringsXml,
 } from '@expo/config-plugins'
 
@@ -42,6 +43,7 @@ const withHybridGoogleIos: ConfigPlugin<HybridGooglePluginProps> = (
   config,
   props
 ) => {
+  config = withGoogleSignInCocoaPods(config)
   config = withGoogleInfoPlist(config, props)
   config = withGoogleAppDelegate(config)
   return config
@@ -120,6 +122,14 @@ const withHybridGoogleAndroid: ConfigPlugin<HybridGooglePluginProps> = (
   })
 }
 
+const withGoogleSignInCocoaPods: ConfigPlugin = (config) => {
+  return withPodfile(config, (innerConfig) => {
+    const contents = innerConfig.modResults.contents
+    innerConfig.modResults.contents = ensureGoogleSignInPod(contents)
+    return innerConfig
+  })
+}
+
 function resolveIosUrlScheme(
   props: HybridGooglePluginProps
 ): string | undefined {
@@ -132,6 +142,31 @@ function resolveIosUrlScheme(
   }
 
   return props.iosClientId.split('.').reverse().join('.')
+}
+
+const GOOGLE_SIGN_IN_POD_PATTERN = /\bpod\s+['"]GoogleSignIn['"]/
+const PODFILE_USE_NATIVE_MODULES_PATTERN = /(use_native_modules!\s*\n)/
+const PODFILE_TARGET_PATTERN = /(target\s+['"][^'"]+['"]\s+do\s*\n)/
+const GOOGLE_SIGN_IN_POD_DECLARATION = "  pod 'GoogleSignIn', '7.0.0'"
+
+function ensureGoogleSignInPod(contents: string): string {
+  if (GOOGLE_SIGN_IN_POD_PATTERN.test(contents)) {
+    return contents
+  }
+
+  const insertion = `${GOOGLE_SIGN_IN_POD_DECLARATION}\n`
+
+  if (PODFILE_USE_NATIVE_MODULES_PATTERN.test(contents)) {
+    return contents.replace(PODFILE_USE_NATIVE_MODULES_PATTERN, `$1${insertion}`)
+  }
+
+  if (PODFILE_TARGET_PATTERN.test(contents)) {
+    return contents.replace(PODFILE_TARGET_PATTERN, `$1${insertion}`)
+  }
+
+  throw new Error(
+    'Unable to automatically add GoogleSignIn pod. Please ensure your ios/Podfile contains a target block and add `pod \'GoogleSignIn\', \'7.0.0\'` manually.'
+  )
 }
 
 function addSwiftGoogleSignIn(contents: string): string {

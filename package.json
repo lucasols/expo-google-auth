@@ -2,6 +2,7 @@
   "name": "@ls-stack/expo-google-auth",
   "version": "0.1.0",
   "description": "Hybrid Google authentication for Expo: native GoogleSignIn on iOS, Credential Manager on Android.",
+  "type": "module",
   "main": "dist/src/index.cjs",
   "module": "dist/src/index.mjs",
   "types": "dist/src/index.d.cts",
