@@ -20,9 +20,7 @@
     "build": "tsdown",
     "clean": "rimraf dist",
     "lint": "eslint \"src/**/*.{ts,tsx}\" \"plugin/**/*.ts\"",
-    "prepare": "pnpm run build",
-    "android": "expo run:android",
-    "ios": "expo run:ios"
+    "prepare": "pnpm run build"
   },
   "keywords": [
     "expo",
@@ -39,10 +37,7 @@
     "react-native": "^0.76.0"
   },
   "dependencies": {
-    "@expo/config-plugins": "^8.0.5",
-    "expo": "~54.0.22",
-    "react": "19.1.0",
-    "react-native": "0.81.5"
+    "@expo/config-plugins": "^8.0.5"
   },
   "devDependencies": {
     "@types/react": "^18.2.45",
