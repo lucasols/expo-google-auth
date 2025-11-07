@@ -1,0 +1,7 @@
+{
+  "platforms": ["apple"],
+  "apple": {
+    "modules": ["ExpoGoogleAuthModule"],
+    "podspecPath": "ios/ExpoGoogleAuth.podspec"
+  }
+}

@@ -6,16 +6,10 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
-import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
-import androidx.credentials.exceptions.GetCredentialSecurityException
-import androidx.credentials.exceptions.GetCredentialUnsupportedException
 import androidx.credentials.exceptions.NoCredentialException
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
-import com.facebook.react.bridge.ReactContextBaseJavaModule
-import com.facebook.react.bridge.ReactMethod
-import com.facebook.react.module.annotations.ReactModule
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.CoroutineScope
@@ -28,22 +22,23 @@ import kotlin.text.Charsets
 
 private const val SERVER_CLIENT_ID_RESOURCE = "ls_stack_google_server_client_id"
 
-@ReactModule(name = ExpoGoogleAuthModule.NAME)
-class ExpoGoogleAuthModule(private val reactContext: ReactApplicationContext) :
-  ReactContextBaseJavaModule(reactContext) {
-
+class ExpoGoogleAuthModuleImpl(
+  private val reactContext: ReactApplicationContext,
+) {
   companion object {
     const val NAME = "ExpoGoogleAuth"
   }
 
   private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-  override fun getName(): String = NAME
+  fun getName(): String = NAME
 
-  @ReactMethod
+  fun invalidate() {
+    coroutineScope.cancel()
+  }
+
   fun signIn(promise: Promise) {
-    val activity = reactContext.currentActivity
-    if (activity == null) {
+    if (reactContext.currentActivity == null) {
       promise.reject("no_activity", "Unable to find the current Activity.")
       return
     }
@@ -52,7 +47,7 @@ class ExpoGoogleAuthModule(private val reactContext: ReactApplicationContext) :
     if (serverClientId.isNullOrEmpty()) {
       promise.reject(
         "missing_client_id",
-        "Set androidServerClientId via the Expo config plugin (writes to strings.xml)."
+        "Set androidServerClientId via the Expo config plugin (writes to strings.xml).",
       )
       return
     }
@@ -72,29 +67,42 @@ class ExpoGoogleAuthModule(private val reactContext: ReactApplicationContext) :
 
         val response = credentialManager.getCredential(
           context = reactContext,
-          request = request
+          request = request,
         )
         handleCredentialResponse(response, promise)
       } catch (cancellation: GetCredentialCancellationException) {
         promise.resolve(null)
       } catch (error: GetCredentialException) {
-        when (error) {
-          is NoCredentialException -> promise.resolve(null)
-          is GetCredentialProviderConfigurationException -> promise.reject(
-            "play_services_not_available",
-            error.message ?: "Credential provider is not available",
-            error
-          )
-          is GetCredentialUnsupportedException -> promise.reject(
-            "credential_unsupported",
-            error.message ?: "Credential provider does not support this request",
-            error
-          )
-          is GetCredentialSecurityException -> promise.reject(
-            "credential_security_error",
-            error.message ?: "Credential provider blocked the request for security reasons",
-            error
-          )
+        when {
+          error is NoCredentialException -> promise.resolve(null)
+          hasExceptionType(
+            error,
+            "androidx.credentials.exceptions.GetCredentialProviderConfigurationException",
+          ) ->
+            promise.reject(
+              "play_services_not_available",
+              error.message ?: "Credential provider is not available",
+              error,
+            )
+          hasExceptionType(
+            error,
+            "androidx.credentials.exceptions.GetCredentialUnsupportedException",
+          ) ->
+            promise.reject(
+              "credential_unsupported",
+              error.message ?: "Credential provider does not support this request",
+              error,
+            )
+          hasExceptionType(
+            error,
+            "androidx.credentials.exceptions.GetCredentialSecurityException",
+          ) ->
+            promise.reject(
+              "credential_security_error",
+              error.message
+                ?: "Credential provider blocked the request for security reasons",
+              error,
+            )
           else -> {
             val errorType = error.type ?: "credential_error"
             val errorMessage = error.message ?: "Credential request failed"
@@ -115,11 +123,6 @@ class ExpoGoogleAuthModule(private val reactContext: ReactApplicationContext) :
         promise.reject("unexpected_error", error.message, error)
       }
     }
-  }
-
-  override fun onCatalystInstanceDestroy() {
-    super.onCatalystInstanceDestroy()
-    coroutineScope.cancel()
   }
 
   private fun handleCredentialResponse(response: GetCredentialResponse, promise: Promise) {
@@ -143,7 +146,7 @@ class ExpoGoogleAuthModule(private val reactContext: ReactApplicationContext) :
     val resId = reactContext.resources.getIdentifier(
       SERVER_CLIENT_ID_RESOURCE,
       "string",
-      reactContext.packageName
+      reactContext.packageName,
     )
 
     return if (resId != 0) reactContext.getString(resId) else null
@@ -161,6 +164,18 @@ class ExpoGoogleAuthModule(private val reactContext: ReactApplicationContext) :
       json.optString("email", null).takeIf { it.isNotEmpty() }
     } catch (_: Exception) {
       null
+    }
+  }
+
+  private fun hasExceptionType(
+    error: GetCredentialException,
+    className: String,
+  ): Boolean {
+    return try {
+      val clazz = Class.forName(className)
+      clazz.isInstance(error)
+    } catch (_: ClassNotFoundException) {
+      false
     }
   }
 }

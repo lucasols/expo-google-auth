@@ -2,3 +2,5 @@ node_modules
 build
 dist
 .DS_Store
+android-ref-code
+ios-ref-code

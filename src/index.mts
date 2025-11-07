@@ -1,22 +1,14 @@
-import { NativeModules, Platform } from 'react-native';
+import { Platform } from 'react-native';
+import { requireNativeModule } from 'expo-modules-core';
 
 const MODULE_NAME = 'ExpoGoogleAuth';
-const LINKING_ERROR = `@ls-stack/expo-google-auth: Native module "${MODULE_NAME}" not found. Make sure you have run "npx pod-install" after installing the package and rebuilt the app.`;
 
 type NativeExpoGoogleAuthModule = {
   signIn(): Promise<GoogleLoginResult | null>;
 };
 
-const ExpoGoogleAuth: NativeExpoGoogleAuthModule = NativeModules[MODULE_NAME]
-  ? NativeModules[MODULE_NAME]
-  : new Proxy(
-      {},
-      {
-        get() {
-          throw new Error(LINKING_ERROR);
-        },
-      },
-    ) as NativeExpoGoogleAuthModule;
+const ExpoGoogleAuth: NativeExpoGoogleAuthModule =
+  requireNativeModule<NativeExpoGoogleAuthModule>(MODULE_NAME);
 
 export type GoogleLoginResult = {
   idToken: string;
