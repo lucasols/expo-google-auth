@@ -14,16 +14,9 @@ buildscript {
   }
 }
 
-def isNewArchitectureEnabled() {
-  return rootProject.hasProperty("newArchEnabled") && rootProject.getProperty("newArchEnabled") == "true"
-}
-
 apply plugin: "com.android.library"
 apply plugin: "kotlin-android"
 
-if (isNewArchitectureEnabled()) {
-  apply plugin: "com.facebook.react"
-}
 
 def getExtOrIntegerDefault(name) {
   return rootProject.ext.has(name) ? rootProject.ext.get(name) : (project.properties['ExpoGoogleAuth_' + name]).toInteger()
@@ -48,7 +41,6 @@ android {
     minSdkVersion getExtOrIntegerDefault("minSdkVersion")
     targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
     consumerProguardFiles "consumer-rules.pro"
-    buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
   }
 
   buildFeatures {
@@ -82,11 +74,6 @@ android {
       } else {
         manifest.srcFile "src/main/AndroidManifest.xml"
       }
-      if (isNewArchitectureEnabled()) {
-        java.srcDirs += ["src/newarch/java"]
-      } else {
-        java.srcDirs += ["src/oldarch/java"]
-      }
     }
   }
 }
@@ -99,18 +86,11 @@ repositories {
 def kotlinVersion = getExtOrDefault("kotlinVersion")
 
 dependencies {
+  implementation project(':expo-modules-core')
   implementation "com.facebook.react:react-android"
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
   implementation "androidx.credentials:credentials:1.5.0"
   implementation "androidx.credentials:credentials-play-services-auth:1.5.0"
   implementation "com.google.android.libraries.identity.googleid:googleid:1.1.1"
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
-}
-
-if (isNewArchitectureEnabled()) {
-  react {
-    jsRootDir = file("../src/")
-    libraryName = "ExpoGoogleAuth"
-    codegenJavaPackageName = "com.lsstack.expogoogleauth"
-  }
 }

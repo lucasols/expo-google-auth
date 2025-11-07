@@ -7,54 +7,28 @@ import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.NoCredentialException
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.Promise
-import com.facebook.react.bridge.ReactApplicationContext
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
+import expo.modules.kotlin.functions.Coroutine
+import expo.modules.kotlin.modules.Module
+import expo.modules.kotlin.modules.ModuleDefinition
 import org.json.JSONObject
-import kotlin.text.Charsets
 
 private const val SERVER_CLIENT_ID_RESOURCE = "ls_stack_google_server_client_id"
 
-class ExpoGoogleAuthModuleImpl(
-  private val reactContext: ReactApplicationContext,
-) {
-  companion object {
-    const val NAME = "ExpoGoogleAuth"
-  }
+class ExpoGoogleAuthModule : Module() {
+  override fun definition() = ModuleDefinition {
+    Name("ExpoGoogleAuth")
 
-  private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    AsyncFunction("signIn") Coroutine { ->
+      val currentActivity = appContext.currentActivity
+        ?: throw Exception("Unable to find the current Activity.")
 
-  fun getName(): String = NAME
+      val serverClientId = resolveServerClientId()
+        ?: throw Exception("Set androidServerClientId via the Expo config plugin (writes to strings.xml).")
 
-  fun invalidate() {
-    coroutineScope.cancel()
-  }
-
-  fun signIn(promise: Promise) {
-    if (reactContext.currentActivity == null) {
-      promise.reject("no_activity", "Unable to find the current Activity.")
-      return
-    }
-
-    val serverClientId = resolveServerClientId()
-    if (serverClientId.isNullOrEmpty()) {
-      promise.reject(
-        "missing_client_id",
-        "Set androidServerClientId via the Expo config plugin (writes to strings.xml).",
-      )
-      return
-    }
-
-    coroutineScope.launch {
       try {
-        val credentialManager = CredentialManager.create(reactContext)
+        val credentialManager = CredentialManager.create(appContext.reactContext!!)
         val googleIdOption = GetGoogleIdOption.Builder()
           .setServerClientId(serverClientId)
           .setFilterByAuthorizedAccounts(false)
@@ -66,83 +40,69 @@ class ExpoGoogleAuthModuleImpl(
           .build()
 
         val response = credentialManager.getCredential(
-          context = reactContext,
+          context = appContext.reactContext!!,
           request = request,
         )
-        handleCredentialResponse(response, promise)
+        return@Coroutine handleCredentialResponse(response)
       } catch (cancellation: GetCredentialCancellationException) {
-        promise.resolve(null)
+        return@Coroutine null
       } catch (error: GetCredentialException) {
         when {
-          error is NoCredentialException -> promise.resolve(null)
+          error is NoCredentialException -> return@Coroutine null
           hasExceptionType(
             error,
             "androidx.credentials.exceptions.GetCredentialProviderConfigurationException",
           ) ->
-            promise.reject(
-              "play_services_not_available",
-              error.message ?: "Credential provider is not available",
-              error,
-            )
+            throw Exception("Credential provider is not available: ${error.message}")
           hasExceptionType(
             error,
             "androidx.credentials.exceptions.GetCredentialUnsupportedException",
           ) ->
-            promise.reject(
-              "credential_unsupported",
-              error.message ?: "Credential provider does not support this request",
-              error,
-            )
+            throw Exception("Credential provider does not support this request: ${error.message}")
           hasExceptionType(
             error,
             "androidx.credentials.exceptions.GetCredentialSecurityException",
           ) ->
-            promise.reject(
-              "credential_security_error",
-              error.message
-                ?: "Credential provider blocked the request for security reasons",
-              error,
-            )
+            throw Exception("Credential provider blocked the request for security reasons: ${error.message}")
           else -> {
             val errorType = error.type ?: "credential_error"
             val errorMessage = error.message ?: "Credential request failed"
             if (errorType.contains("NoCredentialAvailable", ignoreCase = true)) {
-              promise.resolve(null)
+              return@Coroutine null
             } else if (errorType.contains("Configuration", ignoreCase = true)) {
-              promise.reject("play_services_not_available", errorMessage, error)
+              throw Exception("Play services not available: $errorMessage")
             } else if (errorType.contains("Unsupported", ignoreCase = true)) {
-              promise.reject("credential_unsupported", errorMessage, error)
+              throw Exception("Credential unsupported: $errorMessage")
             } else if (errorType.contains("Security", ignoreCase = true)) {
-              promise.reject("credential_security_error", errorMessage, error)
+              throw Exception("Credential security error: $errorMessage")
             } else {
-              promise.reject("credential_error", errorMessage, error)
+              throw Exception("Credential error: $errorMessage")
             }
           }
         }
       } catch (error: Exception) {
-        promise.reject("unexpected_error", error.message, error)
+        throw error
       }
     }
   }
 
-  private fun handleCredentialResponse(response: GetCredentialResponse, promise: Promise) {
+  private fun handleCredentialResponse(response: GetCredentialResponse): Map<String, String?>? {
     val credential = response.credential
 
     if (credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
       val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
-      val result = Arguments.createMap().apply {
-        putString("idToken", googleCredential.idToken)
-        putString("email", extractEmail(googleCredential.idToken))
-        putString("name", googleCredential.displayName)
-        putString("picture", googleCredential.profilePictureUri?.toString())
-      }
-      promise.resolve(result)
-    } else {
-      promise.resolve(null)
+      return mapOf(
+        "idToken" to googleCredential.idToken,
+        "email" to extractEmail(googleCredential.idToken),
+        "name" to googleCredential.displayName,
+        "picture" to googleCredential.profilePictureUri?.toString()
+      )
     }
+    return null
   }
 
   private fun resolveServerClientId(): String? {
+    val reactContext = appContext.reactContext ?: return null
     val resId = reactContext.resources.getIdentifier(
       SERVER_CLIENT_ID_RESOURCE,
       "string",

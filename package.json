@@ -8,7 +8,6 @@
   "scripts": {
     "build": "tsdown",
     "clean": "rimraf dist",
-    "lint": "eslint \"src/**/*.{ts,tsx}\" \"plugin/**/*.ts\"",
     "prepare": "pnpm run build"
   },
   "keywords": [
