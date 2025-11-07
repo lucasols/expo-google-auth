@@ -19,6 +19,14 @@
   ],
   "author": "Lucas Oliveira Santos",
   "license": "MIT",
+  "files": [
+    "dist",
+    "plugin",
+    "android",
+    "ios",
+    "app.plugin.js",
+    "expo-module.config.json"
+  ],
   "peerDependencies": {
     "expo": "^54.0.0",
     "react": "^18.2.0",
