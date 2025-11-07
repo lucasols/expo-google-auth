@@ -121,7 +121,7 @@ class ExpoGoogleAuthModule : Module() {
       val payload = parts[1]
       val decoded = Base64.decode(payload, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
       val json = JSONObject(String(decoded, Charsets.UTF_8))
-      json.optString("email", null).takeIf { it.isNotEmpty() }
+      json.optString("email").takeIf { it.isNotEmpty() }
     } catch (_: Exception) {
       null
     }
