@@ -43,7 +43,7 @@ Update your `app.json` or `app.config.ts` to include the config plugin and provi
 2. Add the reversed client ID as a URL type (the plugin will add this if you provide `iosClientId`).
 3. After installing the package, run `pod install` in your iOS directory.
 
-The plugin patches `AppDelegate` to forward auth callbacks to `GIDSignIn`.
+An Expo app delegate subscriber forwards auth callbacks to `GIDSignIn`, so no `AppDelegate` changes are needed (works with the SDK 58 scene life cycle).
 
 ## Android Setup
 

@@ -4,7 +4,6 @@ import {
   IOSConfig,
   WarningAggregator,
   createRunOncePlugin,
-  withAppDelegate,
   withInfoPlist,
   withPodfile,
   withStringsXml,
@@ -45,7 +44,6 @@ const withHybridGoogleIos: ConfigPlugin<HybridGooglePluginProps> = (
 ) => {
   config = withGoogleSignInCocoaPods(config)
   config = withGoogleInfoPlist(config, props)
-  config = withGoogleAppDelegate(config)
   return config
 }
 
@@ -73,23 +71,6 @@ const withGoogleInfoPlist: ConfigPlugin<HybridGooglePluginProps> = (
       )
     }
 
-    return innerConfig
-  })
-}
-
-const withGoogleAppDelegate: ConfigPlugin = (config) => {
-  return withAppDelegate(config, (innerConfig) => {
-    const { modResults } = innerConfig
-    if (modResults.language === 'swift') {
-      modResults.contents = addSwiftGoogleSignIn(modResults.contents)
-    } else if (modResults.language === 'objc') {
-      modResults.contents = addObjcGoogleSignIn(modResults.contents)
-    } else {
-      WarningAggregator.addWarningIOS(
-        '@ls-stack/expo-google-auth',
-        `Unsupported AppDelegate language "${modResults.language}". Please add GoogleSignIn URL handling manually.`
-      )
-    }
     return innerConfig
   })
 }
@@ -167,111 +148,6 @@ function ensureGoogleSignInPod(contents: string): string {
   throw new Error(
     'Unable to automatically add GoogleSignIn pod. Please ensure your ios/Podfile contains a target block and add `pod \'GoogleSignIn\', \'7.0.0\'` manually.'
   )
-}
-
-function addSwiftGoogleSignIn(contents: string): string {
-  let output = contents
-
-  if (!output.includes('import GoogleSignIn')) {
-    const importPattern = /import\s+ExpoModulesCore.*\n/
-    if (importPattern.test(output)) {
-      output = output.replace(
-        importPattern,
-        (match) => `${match}import GoogleSignIn\n`
-      )
-    } else {
-      output = `import GoogleSignIn\n${output}`
-    }
-  }
-
-  const handlerSnippet =
-    '    if GIDSignIn.sharedInstance.handle(url) {\n      return true\n    }\n'
-
-  if (/GIDSignIn\.sharedInstance(?:\s*\.\s*)?handle\(url\)/.test(output)) {
-    return output
-  }
-
-  const swiftOpenUrlHandlerRegex =
-    /func\s+application\s*\([\s\S]*?open\s+\w+\s*:\s*URL[\s\S]*?options\s*:\s*\[\s*UIApplication\.OpenURLOptionsKey\s*:\s*Any\??\s*\]\??\s*(?:=\s*\[\s*:\s*\])?\s*\)\s*->\s*Bool\s*\{/
-
-  const applicationSignature =
-    'func application(_ application: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool'
-
-  if (swiftOpenUrlHandlerRegex.test(output)) {
-    output = output.replace(
-      swiftOpenUrlHandlerRegex,
-      (match) => `${match}\n${handlerSnippet}`
-    )
-    return output
-  }
-
-  const method = `
-  ${applicationSignature} {
-${handlerSnippet}    return false
-  }
-`
-
-  const insertionIndex = output.lastIndexOf('}')
-  if (insertionIndex !== -1) {
-    output = `${output.slice(0, insertionIndex)}${method}${output.slice(
-      insertionIndex
-    )}`
-  } else {
-    output += method
-  }
-
-  return output
-}
-
-function addObjcGoogleSignIn(contents: string): string {
-  let output = contents
-
-  if (!output.includes('#import <GoogleSignIn/GoogleSignIn.h>')) {
-    const importPattern = /#import "AppDelegate\.h"\n/
-    if (importPattern.test(output)) {
-      output = output.replace(
-        importPattern,
-        (match) => `${match}#import <GoogleSignIn/GoogleSignIn.h>\n`
-      )
-    } else {
-      output = `#import <GoogleSignIn/GoogleSignIn.h>\n${output}`
-    }
-  }
-
-  const handlerSnippet =
-    '  if ([GIDSignIn.sharedInstance handleURL:url]) {\n    return YES;\n  }\n'
-
-  if (/GIDSignIn(?:\.| )sharedInstance[\s\S]*?handleURL:url/.test(output)) {
-    return output
-  }
-
-  const objcOpenUrlHandlerRegex =
-    /-\s*\(\s*BOOL\s*\)\s*application:\s*\(\s*UIApplication\s*\*\s*\)\s*\w+[\s\S]*?openURL:\s*\(\s*NSURL\s*\*\s*\)\s*\w+[\s\S]*?options:\s*\(\s*NSDictionary\s*<\s*UIApplicationOpenURLOptionsKey\s*,\s*id\s*>\s*\*\s*\)\s*\w+\s*\{/
-
-  const applicationSignature =
-    '- (BOOL)application:(UIApplication *)application openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey,id> *)options'
-
-  if (objcOpenUrlHandlerRegex.test(output)) {
-    output = output.replace(
-      objcOpenUrlHandlerRegex,
-      (match) => `${match}\n${handlerSnippet}`
-    )
-    return output
-  }
-  const method = `
-${applicationSignature} {
-${handlerSnippet}  return NO;
-}
-`
-
-  const anchor = output.lastIndexOf('@end')
-  if (anchor !== -1) {
-    output = `${output.slice(0, anchor)}${method}\n@end`
-  } else {
-    output += method
-  }
-
-  return output
 }
 
 const plugin = createRunOncePlugin(withHybridGoogle, pkg.name, pkg.version)

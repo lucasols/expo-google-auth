@@ -5,6 +5,7 @@
   },
   "apple": {
     "modules": ["ExpoGoogleAuthModule"],
+    "appDelegateSubscribers": ["ExpoGoogleAuthAppDelegateSubscriber"],
     "podspecPath": "ios/ExpoGoogleAuth.podspec"
   }
 }
