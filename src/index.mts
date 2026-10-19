@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { requireNativeModule } from 'expo-modules-core';
+import { requireOptionalNativeModule } from 'expo';
 
 const MODULE_NAME = 'ExpoGoogleAuth';
 
@@ -7,8 +7,9 @@ type NativeExpoGoogleAuthModule = {
   signIn(): Promise<GoogleLoginResult | null>;
 };
 
-const ExpoGoogleAuth: NativeExpoGoogleAuthModule =
-  requireNativeModule<NativeExpoGoogleAuthModule>(MODULE_NAME);
+// Optional so importing the library doesn't throw on web or where the native module isn't linked
+const ExpoGoogleAuth: NativeExpoGoogleAuthModule | null =
+  requireOptionalNativeModule<NativeExpoGoogleAuthModule>(MODULE_NAME);
 
 export type GoogleLoginResult = {
   idToken: string;
@@ -23,6 +24,8 @@ export type GoogleAuthErrorCode =
   | 'NO_ACTIVITY'
   | 'NO_VIEW_CONTROLLER'
   | 'MISSING_CLIENT_ID'
+  | 'MISSING_URL_SCHEME'
+  | 'NO_CREDENTIAL'
   | 'AUTHENTICATION_ERROR'
   | 'SIGNIN_ERROR'
   | 'CREDENTIAL_ERROR'
@@ -71,6 +74,8 @@ const DEFAULT_ERROR_MESSAGES: Record<GoogleAuthErrorCode, string> = {
   NO_ACTIVITY: 'Unable to find the current Android activity.',
   NO_VIEW_CONTROLLER: 'Unable to find the current iOS view controller.',
   MISSING_CLIENT_ID: 'Google client ID is missing. Check your configuration.',
+  MISSING_URL_SCHEME: 'The reversed Google client ID URL scheme is not registered in Info.plist.',
+  NO_CREDENTIAL: 'No Google account is available for sign-in on this device.',
   AUTHENTICATION_ERROR: 'Google authentication failed.',
   SIGNIN_ERROR: 'Google sign-in failed.',
   CREDENTIAL_ERROR: 'Credential Manager failed to provide a credential.',
@@ -87,6 +92,8 @@ const NATIVE_CODE_MAP: Record<string, GoogleAuthErrorCode> = {
   no_activity: 'NO_ACTIVITY',
   no_view_controller: 'NO_VIEW_CONTROLLER',
   missing_client_id: 'MISSING_CLIENT_ID',
+  missing_url_scheme: 'MISSING_URL_SCHEME',
+  no_credential: 'NO_CREDENTIAL',
   authentication_error: 'AUTHENTICATION_ERROR',
   signin_error: 'SIGNIN_ERROR',
   credential_error: 'CREDENTIAL_ERROR',
@@ -171,6 +178,16 @@ export async function signIn(): Promise<GoogleLoginResult | null> {
       code: 'UNSUPPORTED_PLATFORM',
       platform: normalizePlatform(Platform.OS),
     });
+  }
+
+  if (!ExpoGoogleAuth) {
+    throw new ExpoGoogleAuthError(
+      'The ExpoGoogleAuth native module is not available. Expo Go is not supported; rebuild your development build after installing the library.',
+      {
+        code: 'UNSUPPORTED_PLATFORM',
+        platform: normalizePlatform(Platform.OS),
+      },
+    );
   }
 
   try {

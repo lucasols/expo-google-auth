@@ -12,9 +12,10 @@ Pod::Spec.new do |s|
   s.source       = { :git => 'https://github.com/lucasoliveirasantos/expo-google-auth.git', :tag => "v#{s.version}" }
   s.source_files = '*.swift'
   s.requires_arc = true
-  s.platform     = :ios, '13.0'
+  s.platform     = :ios, '15.1'
   s.swift_version = '5.0'
 
   s.dependency 'ExpoModulesCore'
-  s.dependency 'GoogleSignIn'
+  # 7.1+ ships the privacy manifest Apple requires for App Store submissions
+  s.dependency 'GoogleSignIn', '>= 7.1', '< 11'
 end

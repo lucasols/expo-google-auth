@@ -7,12 +7,16 @@ public class ExpoGoogleAuthModule: Module {
     case inProgress = "in_progress"
     case noViewController = "no_view_controller"
     case missingClientID = "missing_client_id"
+    case missingURLScheme = "missing_url_scheme"
     case authentication = "authentication_error"
     case signIn = "signin_error"
   }
 
   private enum Constants {
     static let infoPlistClientIDKey = "GIDClientID"
+    static let infoPlistServerClientIDKey = "GIDServerClientID"
+    static let urlTypesKey = "CFBundleURLTypes"
+    static let urlSchemesKey = "CFBundleURLSchemes"
     static let legacyClientIDKey = "CLIENT_ID"
     static let googleServiceInfoName = "GoogleService-Info"
     static let googleSignInErrorDomain = "com.google.GIDSignIn"
@@ -57,8 +61,15 @@ public class ExpoGoogleAuthModule: Module {
       return
     }
 
-    guard let configuration = buildConfiguration() else {
+    guard let configuration = resolveConfiguration() else {
       promise.reject(NativeError.missingClientID.rawValue, "Set the Google client ID in Info.plist or via the Expo config plugin.")
+      return
+    }
+
+    // GoogleSignIn raises an uncatchable NSException when this scheme is missing
+    let expectedURLScheme = reversedClientID(configuration.clientID)
+    guard isURLSchemeRegistered(expectedURLScheme) else {
+      promise.reject(NativeError.missingURLScheme.rawValue, "Add the URL scheme \"\(expectedURLScheme)\" to Info.plist (set iosClientId in the Expo config plugin).")
       return
     }
 
@@ -76,31 +87,51 @@ public class ExpoGoogleAuthModule: Module {
     }
   }
 
-  private func buildConfiguration() -> GIDConfiguration? {
+  private func resolveConfiguration() -> GIDConfiguration? {
+    // GoogleSignIn already loads GIDClientID, GIDServerClientID, GIDHostedDomain and GIDOpenIDRealm
+    // from Info.plist, so keep that configuration instead of rebuilding it with only the client ID
+    if let configured = GIDSignIn.sharedInstance.configuration, !configured.clientID.isEmpty {
+      return configured
+    }
+
     guard let clientID = resolveClientID() else {
       return nil
     }
 
-    return GIDConfiguration(clientID: clientID)
+    return GIDConfiguration(
+      clientID: clientID,
+      serverClientID: bundleStringValue(forKey: Constants.infoPlistServerClientIDKey)
+    )
   }
 
   private func resolveClientID() -> String? {
-    if let configured = GIDSignIn.sharedInstance.configuration?.clientID, !configured.isEmpty {
-      return configured
-    }
-
-    if let infoValue = bundleClientIDValue(forKey: Constants.infoPlistClientIDKey) {
+    if let infoValue = bundleStringValue(forKey: Constants.infoPlistClientIDKey) {
       return infoValue
     }
 
-    if let legacyValue = bundleClientIDValue(forKey: Constants.legacyClientIDKey) {
+    if let legacyValue = bundleStringValue(forKey: Constants.legacyClientIDKey) {
       return legacyValue
     }
 
     return googleServicePlistClientID()
   }
 
-  private func bundleClientIDValue(forKey key: String) -> String? {
+  private func reversedClientID(_ clientID: String) -> String {
+    return clientID.split(separator: ".").reversed().joined(separator: ".")
+  }
+
+  private func isURLSchemeRegistered(_ scheme: String) -> Bool {
+    guard let urlTypes = Bundle.main.object(forInfoDictionaryKey: Constants.urlTypesKey) as? [[String: Any]] else {
+      return false
+    }
+
+    return urlTypes.contains { urlType in
+      let schemes = urlType[Constants.urlSchemesKey] as? [String] ?? []
+      return schemes.contains { $0.caseInsensitiveCompare(scheme) == .orderedSame }
+    }
+  }
+
+  private func bundleStringValue(forKey key: String) -> String? {
     guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String,
           !value.isEmpty else {
       return nil

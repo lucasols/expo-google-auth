@@ -6,8 +6,8 @@ export default defineConfig({
   dts: true,
   clean: true,
   external: [
-    'expo-modules-core',
+    'expo',
+    'expo/config-plugins',
     'react-native',
-    '@expo/config-plugins',
   ],
 })

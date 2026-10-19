@@ -1,96 +1,20 @@
-buildscript {
-  ext.getExtOrDefault = { name ->
-    return rootProject.ext.has(name) ? rootProject.ext.get(name) : project.properties['ExpoGoogleAuth_' + name]
-  }
-
-  repositories {
-    google()
-    mavenCentral()
-  }
-
-  dependencies {
-    classpath "com.android.tools.build:gradle:8.7.2"
-    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${getExtOrDefault('kotlinVersion')}"
-  }
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
 }
 
-apply plugin: "com.android.library"
-apply plugin: "kotlin-android"
-
-
-def getExtOrIntegerDefault(name) {
-  return rootProject.ext.has(name) ? rootProject.ext.get(name) : (project.properties['ExpoGoogleAuth_' + name]).toInteger()
-}
-
-def supportsNamespace() {
-  def parsed = com.android.Version.ANDROID_GRADLE_PLUGIN_VERSION.tokenize('.')
-  def major = parsed[0].toInteger()
-  def minor = parsed[1].toInteger()
-
-  return (major == 7 && minor >= 3) || major >= 8
-}
+group = 'com.lsstack.expogoogleauth'
+version = new groovy.json.JsonSlurper().parse(file("../package.json")).version
 
 android {
-  if (supportsNamespace()) {
-    namespace "com.lsstack.expogoogleauth"
-  }
-
-  compileSdkVersion getExtOrIntegerDefault("compileSdkVersion")
-
+  namespace "com.lsstack.expogoogleauth"
   defaultConfig {
-    minSdkVersion getExtOrIntegerDefault("minSdkVersion")
-    targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
     consumerProguardFiles "consumer-rules.pro"
   }
-
-  buildFeatures {
-    buildConfig true
-  }
-
-  buildTypes {
-    release {
-      minifyEnabled false
-    }
-  }
-
-  lintOptions {
-    warning "InvalidPackage"
-    disable "GradleCompatible"
-  }
-
-  compileOptions {
-    sourceCompatibility JavaVersion.VERSION_17
-    targetCompatibility JavaVersion.VERSION_17
-  }
-
-  kotlinOptions {
-    jvmTarget = "17"
-  }
-
-  sourceSets {
-    main {
-      if (supportsNamespace()) {
-        manifest.srcFile "src/main/AndroidManifestNew.xml"
-      } else {
-        manifest.srcFile "src/main/AndroidManifest.xml"
-      }
-    }
-  }
 }
-
-repositories {
-  google()
-  mavenCentral()
-}
-
-def kotlinVersion = getExtOrDefault("kotlinVersion")
 
 dependencies {
-  implementation project(':expo-modules-core')
-  implementation "com.facebook.react:react-android"
-  implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
   implementation "androidx.credentials:credentials:1.5.0"
   implementation "androidx.credentials:credentials-play-services-auth:1.5.0"
   implementation "com.google.android.libraries.identity.googleid:googleid:1.1.1"
-  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
 }

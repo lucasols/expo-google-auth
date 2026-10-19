@@ -7,7 +7,7 @@ import {
   withInfoPlist,
   withPodfile,
   withStringsXml,
-} from '@expo/config-plugins'
+} from 'expo/config-plugins'
 
 import pkg from '../package.json' with { type: 'json' }
 
@@ -21,6 +21,11 @@ export type HybridGooglePluginProps = {
    * Custom URL scheme used by Google sign-in redirect. Defaults to reversed client ID.
    */
   iosUrlScheme?: string
+  /**
+   * Web client ID used by iOS when your backend needs `serverClientID` behaviour.
+   * Written to Info.plist as GIDServerClientID.
+   */
+  iosServerClientId?: string
   /**
    * Android web client ID used when requesting an ID token with Credential Manager.
    */
@@ -42,7 +47,7 @@ const withHybridGoogleIos: ConfigPlugin<HybridGooglePluginProps> = (
   config,
   props
 ) => {
-  config = withGoogleSignInCocoaPods(config)
+  config = withLegacyGoogleSignInPodRemoved(config)
   config = withGoogleInfoPlist(config, props)
   return config
 }
@@ -59,15 +64,20 @@ const withGoogleInfoPlist: ConfigPlugin<HybridGooglePluginProps> = (
       infoPlist.GIDClientID = props.iosClientId
     }
 
+    if (props.iosServerClientId) {
+      infoPlist.GIDServerClientID = props.iosServerClientId
+    }
+
     if (urlScheme) {
       innerConfig.modResults = IOSConfig.Scheme.appendScheme(
         urlScheme,
         infoPlist
       )
-    } else if (!props.iosClientId) {
+    } else if (!innerConfig.ios?.googleServicesFile) {
+      // With `ios.googleServicesFile`, Expo adds the REVERSED_CLIENT_ID scheme itself
       WarningAggregator.addWarningIOS(
         '@ls-stack/expo-google-auth',
-        'You must provide "iosClientId" (Google OAuth client ID) for iOS to complete configuration.'
+        'You must provide "iosClientId" (Google OAuth client ID) or "ios.googleServicesFile" for iOS to complete configuration.'
       )
     }
 
@@ -103,10 +113,16 @@ const withHybridGoogleAndroid: ConfigPlugin<HybridGooglePluginProps> = (
   })
 }
 
-const withGoogleSignInCocoaPods: ConfigPlugin = (config) => {
+// Versions <= 0.4.0 pinned GoogleSignIn 7.0.0 in the Podfile, which conflicts with the podspec range
+const LEGACY_GOOGLE_SIGN_IN_POD_LINE_PATTERN =
+  /^[ \t]*pod 'GoogleSignIn', '7\.0\.0'[ \t]*\r?\n/m
+
+const withLegacyGoogleSignInPodRemoved: ConfigPlugin = (config) => {
   return withPodfile(config, (innerConfig) => {
-    const contents = innerConfig.modResults.contents
-    innerConfig.modResults.contents = ensureGoogleSignInPod(contents)
+    innerConfig.modResults.contents = innerConfig.modResults.contents.replace(
+      LEGACY_GOOGLE_SIGN_IN_POD_LINE_PATTERN,
+      ''
+    )
     return innerConfig
   })
 }
@@ -123,31 +139,6 @@ function resolveIosUrlScheme(
   }
 
   return props.iosClientId.split('.').reverse().join('.')
-}
-
-const GOOGLE_SIGN_IN_POD_PATTERN = /\bpod\s+['"]GoogleSignIn['"]/
-const PODFILE_USE_NATIVE_MODULES_PATTERN = /(use_native_modules!\s*\n)/
-const PODFILE_TARGET_PATTERN = /(target\s+['"][^'"]+['"]\s+do\s*\n)/
-const GOOGLE_SIGN_IN_POD_DECLARATION = "  pod 'GoogleSignIn', '7.0.0'"
-
-function ensureGoogleSignInPod(contents: string): string {
-  if (GOOGLE_SIGN_IN_POD_PATTERN.test(contents)) {
-    return contents
-  }
-
-  const insertion = `${GOOGLE_SIGN_IN_POD_DECLARATION}\n`
-
-  if (PODFILE_USE_NATIVE_MODULES_PATTERN.test(contents)) {
-    return contents.replace(PODFILE_USE_NATIVE_MODULES_PATTERN, `$1${insertion}`)
-  }
-
-  if (PODFILE_TARGET_PATTERN.test(contents)) {
-    return contents.replace(PODFILE_TARGET_PATTERN, `$1${insertion}`)
-  }
-
-  throw new Error(
-    'Unable to automatically add GoogleSignIn pod. Please ensure your ios/Podfile contains a target block and add `pod \'GoogleSignIn\', \'7.0.0\'` manually.'
-  )
 }
 
 const plugin = createRunOncePlugin(withHybridGoogle, pkg.name, pkg.version)
